@@ -1,5 +1,6 @@
 import React, { useMemo, useState, useRef } from 'react';
 import { Job, Status } from '../types';
+import { MENU_STRUCTURE } from '../constants';
 import { 
   PieChart, Pie, Cell, ResponsiveContainer, Tooltip, Legend, 
   BarChart, Bar, XAxis, YAxis, CartesianGrid 
@@ -9,6 +10,7 @@ import { AlertCircle, CheckCircle2, Clock, CalendarDays, Upload, FileDown, Arrow
 interface DashboardSummaryProps {
   jobs: Job[];
   onBulkAddJobs: (jobs: Job[]) => void;
+  onUpdateJob: (id: string, updates: Partial<Job>) => void;
   isLoading?: boolean;
   isSaving?: boolean;
   connectionError?: boolean;
@@ -20,6 +22,7 @@ const COLORS = ['#0088FE', '#FFBB28', '#00C49F', '#EE2E24'];
 export const DashboardSummary: React.FC<DashboardSummaryProps> = ({ 
     jobs, 
     onBulkAddJobs,
+    onUpdateJob,
     isLoading = false,
     isSaving = false,
     connectionError = false,
@@ -55,8 +58,16 @@ export const DashboardSummary: React.FC<DashboardSummaryProps> = ({
 
   const barData = useMemo(() => {
     const counts: Record<string, number> = {};
+    // Initialize with 0 for all known categories to ensure they appear on chart even if empty
+    Object.keys(MENU_STRUCTURE).forEach(cat => counts[cat] = 0);
+    
     jobs.forEach(job => {
-      counts[job.category] = (counts[job.category] || 0) + 1;
+      if (counts[job.category] !== undefined) {
+        counts[job.category] = (counts[job.category] || 0) + 1;
+      } else {
+        // Handle categories that might not be in MENU_STRUCTURE anymore
+        counts[job.category] = (counts[job.category] || 0) + 1;
+      }
     });
     return Object.keys(counts).map(key => ({
       name: key,
@@ -137,7 +148,11 @@ export const DashboardSummary: React.FC<DashboardSummaryProps> = ({
         result = jobs.filter(j => new Date(j.deadline) < today && j.status !== 'Completed');
     } else if (filterStatus === 'In Progress') {
         result = jobs.filter(j => j.status === 'In Progress' || j.status === 'Pending');
+    } else if (Object.keys(MENU_STRUCTURE).includes(filterStatus)) {
+        // Handle Category Filtering logic
+        result = jobs.filter(j => j.category === filterStatus);
     } else {
+        // Handle Status Filtering logic
         result = jobs.filter(j => j.status === filterStatus);
     }
 
@@ -161,6 +176,12 @@ export const DashboardSummary: React.FC<DashboardSummaryProps> = ({
     }
   };
 
+  const getFilterTitle = () => {
+      if (filterStatus === 'In Progress') return 'Dalam Proses & Pending';
+      if (Object.keys(MENU_STRUCTURE).includes(filterStatus || '')) return `Kategori: ${filterStatus}`;
+      return filterStatus;
+  }
+
   if (filterStatus) {
     return (
         <div className="space-y-6">
@@ -173,7 +194,7 @@ export const DashboardSummary: React.FC<DashboardSummaryProps> = ({
                         <ArrowLeft className="w-4 h-4 mr-1" /> Kembali ke Dashboard
                     </button>
                     <h2 className="text-2xl font-bold text-gray-800">
-                        Detail Pekerjaan: <span className="text-[#002F6C]">{filterStatus === 'In Progress' ? 'Dalam Proses & Pending' : filterStatus}</span>
+                        Detail Pekerjaan: <span className="text-[#002F6C]">{getFilterTitle()}</span>
                     </h2>
                 </div>
                 
@@ -217,14 +238,23 @@ export const DashboardSummary: React.FC<DashboardSummaryProps> = ({
                                         <td className="p-4">{job.branchDept}</td>
                                         <td className="p-4">{job.jobType}</td>
                                         <td className="p-4">
-                                            <span className={`px-3 py-1 rounded-full text-xs font-semibold border ${getStatusColor(job.status, job.deadline)}`}>
-                                                {job.status}
-                                            </span>
+                                            <select 
+                                                value={job.status}
+                                                onChange={(e) => onUpdateJob(job.id, { status: e.target.value as Status })}
+                                                className={`px-3 py-1 rounded-full text-xs font-semibold border appearance-none cursor-pointer focus:outline-none ${getStatusColor(job.status, job.deadline)}`}
+                                            >
+                                                <option value="Pending">Pending</option>
+                                                <option value="In Progress">In Progress</option>
+                                                <option value="Completed">Completed</option>
+                                            </select>
                                         </td>
                                         <td className="p-4">
-                                            <span className={`font-medium ${new Date() > new Date(job.deadline) && job.status !== 'Completed' ? 'text-red-600' : 'text-gray-600'}`}>
-                                                {new Date(job.deadline).toLocaleDateString('id-ID')}
-                                            </span>
+                                            <input 
+                                                type="date"
+                                                className={`text-sm border-b border-dashed border-gray-300 bg-transparent focus:outline-none focus:border-blue-500 font-medium ${new Date() > new Date(job.deadline) && job.status !== 'Completed' ? 'text-red-600' : 'text-gray-600'}`}
+                                                value={job.deadline}
+                                                onChange={(e) => onUpdateJob(job.id, { deadline: e.target.value })}
+                                            />
                                         </td>
                                         <td className="p-4 text-xs text-gray-400">
                                             {job.createdBy || '-'}
@@ -299,12 +329,15 @@ export const DashboardSummary: React.FC<DashboardSummaryProps> = ({
       </div>
 
       {stats.overdue > 0 && (
-        <div className="bg-red-50 border-l-4 border-red-500 p-4 rounded-md flex items-start animate-pulse shadow-sm">
+        <div 
+            onClick={() => setFilterStatus('Overdue')}
+            className="bg-red-50 border-l-4 border-red-500 p-4 rounded-md flex items-start animate-pulse shadow-sm cursor-pointer hover:bg-red-100 transition-colors"
+        >
           <AlertCircle className="w-6 h-6 text-red-600 mr-3 mt-0.5" />
           <div className="flex-1">
             <h4 className="text-red-800 font-bold text-lg">PERHATIAN: {stats.overdue} Pekerjaan Melewati Dateline!</h4>
             <p className="text-red-700 mt-1">
-              Mohon segera selesaikan pekerjaan yang tertunda. Klik pada kartu "Melewati Dateline" untuk melihat detail.
+              Mohon segera selesaikan pekerjaan yang tertunda. Klik disini untuk melihat detail.
             </p>
           </div>
         </div>
@@ -392,15 +425,33 @@ export const DashboardSummary: React.FC<DashboardSummaryProps> = ({
         </div>
 
         <div className="bg-white p-6 rounded-xl shadow-sm border border-gray-100">
-          <h3 className="text-lg font-bold text-gray-800 mb-4">Pekerjaan per Kategori</h3>
+          <h3 className="text-lg font-bold text-gray-800 mb-4">Pekerjaan per Kategori (Klik untuk detail)</h3>
           <div className="h-64">
             <ResponsiveContainer width="100%" height="100%">
-              <BarChart data={barData}>
+              <BarChart 
+                data={barData} 
+                onClick={(data) => {
+                  if (data && data.activeLabel) {
+                    setFilterStatus(data.activeLabel);
+                  }
+                }}
+              >
                 <CartesianGrid strokeDasharray="3 3" vertical={false} />
                 <XAxis dataKey="name" fontSize={12} tickLine={false} axisLine={false} />
                 <YAxis fontSize={12} tickLine={false} axisLine={false} />
-                <Tooltip />
-                <Bar dataKey="count" fill="#002F6C" radius={[4, 4, 0, 0]} />
+                <Tooltip cursor={{fill: 'transparent'}} />
+                <Bar 
+                    dataKey="count" 
+                    fill="#002F6C" 
+                    radius={[4, 4, 0, 0]} 
+                    cursor="pointer"
+                    onClick={(data, index) => {
+                        // Fallback click handler directly on the Bar
+                        if (data && data.name) {
+                             setFilterStatus(data.name as string);
+                        }
+                    }}
+                />
               </BarChart>
             </ResponsiveContainer>
           </div>
