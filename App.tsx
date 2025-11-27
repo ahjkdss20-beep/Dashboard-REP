@@ -1,70 +1,115 @@
-
-import { useState, useEffect, useMemo } from 'react';
+import { useState, useEffect, useMemo, useCallback } from 'react';
 import { Layout } from './components/Layout';
 import { DashboardSummary } from './components/DashboardSummary';
 import { JobManager } from './components/JobManager';
 import { Login } from './components/Login';
 import { Job, User } from './types';
 import { AUTHORIZED_USERS } from './constants';
+import { api } from './services/api';
 
 function App() {
-  // Load Users from LocalStorage but SYNC with constants to apply Role updates
-  const [users, setUsers] = useState<User[]>(() => {
-    const savedUsersRaw = localStorage.getItem('jne_users_data');
-    const savedUsers = savedUsersRaw ? JSON.parse(savedUsersRaw) : [];
-
-    // Merge strategy:
-    // Always use the authorized list from code as the source of truth for ROLES and NAMES.
-    // However, preserve the PASSWORD from localStorage if the user exists there.
-    return AUTHORIZED_USERS.map(defaultUser => {
-      const savedUser = savedUsers.find((u: User) => u.email === defaultUser.email);
-      return {
-        ...defaultUser,
-        // If user has a saved password, use it. Otherwise use default.
-        password: savedUser ? savedUser.password : defaultUser.password
-      };
-    });
-  });
-
   const [currentUser, setCurrentUser] = useState<User | null>(() => {
     const saved = localStorage.getItem('jne_current_user');
-    const parsedUser = saved ? JSON.parse(saved) : null;
-    
-    // If we have a saved session, ensure we use the latest role info from the users state
-    if (parsedUser) {
-        const upToDateUser = users.find(u => u.email === parsedUser.email);
-        return upToDateUser || parsedUser;
-    }
-    return null;
+    return saved ? JSON.parse(saved) : null;
   });
 
+  const [jobs, setJobs] = useState<Job[]>([]);
+  const [users, setUsers] = useState<User[]>(AUTHORIZED_USERS);
+  
   const [activeCategory, setActiveCategory] = useState<string | null>(null);
   const [activeSubCategory, setActiveSubCategory] = useState<string | null>(null);
   
-  // Data Persistence for Jobs
-  const [jobs, setJobs] = useState<Job[]>(() => {
-    const saved = localStorage.getItem('jne_jobs_data');
-    return saved ? JSON.parse(saved) : [];
-  });
+  const [isLoading, setIsLoading] = useState(true);
+  const [isSaving, setIsSaving] = useState(false);
+  const [connectionError, setConnectionError] = useState(false);
+  const [lastUpdated, setLastUpdated] = useState<Date | null>(null);
 
+  const fetchData = useCallback(async () => {
+    if (isSaving) return;
+
+    try {
+      const data = await api.getData();
+      if (data) {
+        setConnectionError(false);
+        
+        if (data.jobs && Array.isArray(data.jobs)) {
+            setJobs(data.jobs);
+        }
+
+        if (data.users && Array.isArray(data.users)) {
+            // Merge authorized users (code) with passwords from cloud
+            const mergedUsers = AUTHORIZED_USERS.map(defaultUser => {
+                const cloudUser = data.users.find((u: User) => u.email === defaultUser.email);
+                return {
+                    ...defaultUser, 
+                    password: cloudUser ? cloudUser.password : defaultUser.password
+                };
+            });
+            setUsers(mergedUsers);
+        }
+        
+        setLastUpdated(new Date());
+      }
+    } catch (error) {
+      console.error("Fetch error:", error);
+      setConnectionError(true);
+    } finally {
+      setIsLoading(false);
+    }
+  }, [isSaving]);
+
+  // Initial fetch and polling
   useEffect(() => {
-    localStorage.setItem('jne_jobs_data', JSON.stringify(jobs));
-  }, [jobs]);
+    fetchData(); 
+    const intervalId = setInterval(() => {
+        fetchData();
+    }, 5000); // Sync every 5 seconds
+    return () => clearInterval(intervalId);
+  }, [fetchData]);
 
-  useEffect(() => {
-    localStorage.setItem('jne_users_data', JSON.stringify(users));
-  }, [users]);
+  const saveToCloud = async (newJobs: Job[], newUsers: User[]) => {
+    setIsSaving(true);
+    // Optimistic update
+    setJobs(newJobs);
+    setUsers(newUsers);
 
+    try {
+        const success = await api.saveData({
+            jobs: newJobs,
+            users: newUsers
+        });
+        
+        if (success) {
+            setLastUpdated(new Date());
+            setConnectionError(false);
+        } else {
+            setConnectionError(true);
+            alert("Gagal menyimpan ke server. Data tersimpan sementara di aplikasi tetapi belum masuk ke Database Pusat.");
+        }
+    } catch (error) {
+        console.error(error);
+        setConnectionError(true);
+    } finally {
+        setIsSaving(false);
+    }
+  };
+
+  // Persist current logged in user session
   useEffect(() => {
     if (currentUser) {
       localStorage.setItem('jne_current_user', JSON.stringify(currentUser));
+      // Update local current user instance if cloud data changes (e.g. password change)
+      const freshUser = users.find(u => u.email === currentUser.email);
+      if (freshUser && freshUser.password !== currentUser.password) {
+        setCurrentUser(freshUser);
+      }
     } else {
       localStorage.removeItem('jne_current_user');
     }
-  }, [currentUser]);
+  }, [currentUser, users]);
 
   const handleLogin = (user: User) => {
-    // Ensure we log in with the most up-to-date user data from state
+    // Get the freshest user data
     const freshUserData = users.find(u => u.email === user.email) || user;
     setCurrentUser(freshUserData);
   };
@@ -77,17 +122,13 @@ function App() {
 
   const handleChangePassword = (oldPass: string, newPass: string) => {
     if (!currentUser) return false;
-    
-    // Verify old password
-    if (currentUser.password !== oldPass) {
-        return false;
-    }
+    const actualUser = users.find(u => u.email === currentUser.email) || currentUser;
+    if (actualUser.password !== oldPass) return false;
 
-    // Update user in state and list
-    const updatedUser = { ...currentUser, password: newPass };
-    const updatedUserList = users.map(u => u.email === currentUser.email ? updatedUser : u);
+    const updatedUser = { ...actualUser, password: newPass };
+    const updatedUserList = users.map(u => u.email === actualUser.email ? updatedUser : u);
     
-    setUsers(updatedUserList);
+    saveToCloud(jobs, updatedUserList);
     setCurrentUser(updatedUser);
     return true;
   };
@@ -98,35 +139,39 @@ function App() {
   };
 
   const handleAddJob = (job: Job) => {
-    setJobs(prev => [job, ...prev]);
+    const newJobs = [job, ...jobs];
+    saveToCloud(newJobs, users);
   };
 
   const handleUpdateJob = (id: string, updates: Partial<Job>) => {
-    setJobs(prev => prev.map(j => j.id === id ? { ...j, ...updates } : j));
+    const newJobs = jobs.map(j => j.id === id ? { ...j, ...updates } : j);
+    saveToCloud(newJobs, users);
   };
 
   const handleDeleteJob = (id: string) => {
     if (confirm("Apakah anda yakin ingin menghapus data ini?")) {
-      setJobs(prev => prev.filter(j => j.id !== id));
+      const newJobs = jobs.filter(j => j.id !== id);
+      saveToCloud(newJobs, users);
     }
   };
 
-  const handleBulkAdd = (newJobs: Job[]) => {
-    setJobs(prev => [...newJobs, ...prev]);
+  const handleBulkAdd = (addedJobs: Job[]) => {
+    const newJobs = [...addedJobs, ...jobs];
+    saveToCloud(newJobs, users);
   };
 
-  // Logic: Admin sees ALL. Users see CreatedBy == TheirEmail OR jobs with no creator (legacy data).
   const visibleJobs = useMemo(() => {
     if (!currentUser) return [];
-    
-    if (currentUser.role === 'Admin') {
+    const userRole = users.find(u => u.email === currentUser.email)?.role || currentUser.role;
+
+    if (userRole === 'Admin') {
         return jobs;
     }
 
     return jobs.filter(job => 
         job.createdBy === currentUser.email || !job.createdBy
     );
-  }, [jobs, currentUser]);
+  }, [jobs, currentUser, users]);
 
   if (!currentUser) {
     return <Login onLogin={handleLogin} users={users} />;
@@ -141,9 +186,22 @@ function App() {
       onLogout={handleLogout}
       onChangePassword={handleChangePassword}
     >
-      {/* Dynamic Content based on selection */}
+      {connectionError && (
+        <div className="mb-4 bg-red-100 border border-red-400 text-red-700 px-4 py-2 rounded relative animate-pulse">
+          <strong className="font-bold">Mode Offline: </strong>
+          <span className="block sm:inline">Gagal terhubung ke Database. Cek internet Anda.</span>
+        </div>
+      )}
+
       {!activeCategory ? (
-        <DashboardSummary jobs={visibleJobs} onBulkAddJobs={handleBulkAdd} />
+        <DashboardSummary 
+            jobs={visibleJobs} 
+            onBulkAddJobs={handleBulkAdd}
+            isLoading={isLoading}
+            isSaving={isSaving}
+            lastUpdated={lastUpdated}
+            connectionError={connectionError}
+        />
       ) : (
         activeSubCategory && (
           <JobManager 

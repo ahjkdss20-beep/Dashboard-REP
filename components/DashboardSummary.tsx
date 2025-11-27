@@ -1,21 +1,30 @@
-
 import React, { useMemo, useState, useRef } from 'react';
 import { Job, Status } from '../types';
 import { 
   PieChart, Pie, Cell, ResponsiveContainer, Tooltip, Legend, 
   BarChart, Bar, XAxis, YAxis, CartesianGrid 
 } from 'recharts';
-import { AlertCircle, CheckCircle2, Clock, CalendarDays, Upload, FileDown, ArrowLeft, Search } from 'lucide-react';
+import { AlertCircle, CheckCircle2, Clock, CalendarDays, Upload, FileDown, ArrowLeft, Search, RefreshCw, Cloud, WifiOff } from 'lucide-react';
 
 interface DashboardSummaryProps {
   jobs: Job[];
   onBulkAddJobs: (jobs: Job[]) => void;
+  isLoading?: boolean;
+  isSaving?: boolean;
+  connectionError?: boolean;
+  lastUpdated?: Date | null;
 }
 
-// COLORS: Pending(Blue), In Progress(Yellow/Orange), Completed(Green), Overdue(Red)
 const COLORS = ['#0088FE', '#FFBB28', '#00C49F', '#EE2E24'];
 
-export const DashboardSummary: React.FC<DashboardSummaryProps> = ({ jobs, onBulkAddJobs }) => {
+export const DashboardSummary: React.FC<DashboardSummaryProps> = ({ 
+    jobs, 
+    onBulkAddJobs,
+    isLoading = false,
+    isSaving = false,
+    connectionError = false,
+    lastUpdated = null
+}) => {
   const [filterStatus, setFilterStatus] = useState<string | null>(null);
   const [searchTerm, setSearchTerm] = useState('');
   const fileInputRef = useRef<HTMLInputElement>(null);
@@ -26,7 +35,6 @@ export const DashboardSummary: React.FC<DashboardSummaryProps> = ({ jobs, onBulk
     const pending = jobs.filter(j => j.status === 'Pending').length;
     const inProgress = jobs.filter(j => j.status === 'In Progress').length;
     
-    // Calculate Overdue
     const today = new Date();
     today.setHours(0, 0, 0, 0);
     
@@ -45,7 +53,6 @@ export const DashboardSummary: React.FC<DashboardSummaryProps> = ({ jobs, onBulk
     { name: 'Overdue', value: stats.overdue },
   ];
 
-  // Group by Category
   const barData = useMemo(() => {
     const counts: Record<string, number> = {};
     jobs.forEach(job => {
@@ -57,7 +64,6 @@ export const DashboardSummary: React.FC<DashboardSummaryProps> = ({ jobs, onBulk
     }));
   }, [jobs]);
 
-  // Handle Global Upload
   const handleDownloadTemplate = () => {
     const headers = "Kategori,Sub Kategori,Tanggal Input (YYYY-MM-DD),Cabang/Dept,Jenis Pekerjaan,Status,Dateline (YYYY-MM-DD)";
     const exampleRow = "Penyesuaian,Harga Jual,2024-03-20,Jakarta,Update Tarif,Pending,2024-03-25";
@@ -86,7 +92,6 @@ export const DashboardSummary: React.FC<DashboardSummaryProps> = ({ jobs, onBulk
         
         const cols = lines[i].split(/,|;/); 
         
-        // Need at least 7 columns for global upload including category/subcategory
         if (cols.length >= 7 && cols[0] && cols[1]) {
             const rawStatus = cols[5]?.trim();
             let validStatus: Status = 'Pending';
@@ -103,7 +108,6 @@ export const DashboardSummary: React.FC<DashboardSummaryProps> = ({ jobs, onBulk
                 jobType: cols[4]?.trim() || 'Imported Job',
                 status: validStatus,
                 deadline: cols[6]?.trim() || new Date().toISOString().split('T')[0],
-                // Activation date might be missing in global template, default to undefined
                 activationDate: undefined 
             });
         }
@@ -120,13 +124,11 @@ export const DashboardSummary: React.FC<DashboardSummaryProps> = ({ jobs, onBulk
     reader.readAsText(file);
   };
 
-  // Filter List Logic
   const filteredList = useMemo(() => {
     if (!filterStatus) return [];
     
     let result = jobs;
 
-    // Filter by Status click
     if (filterStatus === 'Total') {
         result = jobs;
     } else if (filterStatus === 'Overdue') {
@@ -134,13 +136,11 @@ export const DashboardSummary: React.FC<DashboardSummaryProps> = ({ jobs, onBulk
         today.setHours(0,0,0,0);
         result = jobs.filter(j => new Date(j.deadline) < today && j.status !== 'Completed');
     } else if (filterStatus === 'In Progress') {
-        // Gabungkan Pending dan In Progress jika klik "Dalam Proses" sesuai grouping di stat card
         result = jobs.filter(j => j.status === 'In Progress' || j.status === 'Pending');
     } else {
         result = jobs.filter(j => j.status === filterStatus);
     }
 
-    // Filter by Search
     if (searchTerm) {
         result = result.filter(j => 
             j.branchDept.toLowerCase().includes(searchTerm.toLowerCase()) || 
@@ -156,12 +156,11 @@ export const DashboardSummary: React.FC<DashboardSummaryProps> = ({ jobs, onBulk
     if (isOverdue) return 'bg-red-100 text-red-800 border-red-200';
     switch (status) {
       case 'Completed': return 'bg-green-100 text-green-800 border-green-200';
-      case 'In Progress': return 'bg-yellow-100 text-yellow-800 border-yellow-200'; // Changed to Yellow
-      default: return 'bg-blue-50 text-blue-800 border-blue-100'; // Pending is blueish
+      case 'In Progress': return 'bg-yellow-100 text-yellow-800 border-yellow-200';
+      default: return 'bg-blue-50 text-blue-800 border-blue-100';
     }
   };
 
-  // View: Detail Table
   if (filterStatus) {
     return (
         <div className="space-y-6">
@@ -241,13 +240,40 @@ export const DashboardSummary: React.FC<DashboardSummaryProps> = ({ jobs, onBulk
     );
   }
 
-  // View: Main Dashboard
   return (
     <div className="space-y-6">
       <div className="flex flex-col lg:flex-row justify-between items-start lg:items-end gap-4 mb-6">
         <div>
-            <h1 className="text-2xl font-bold text-gray-800">Dashboard Monitoring Pekerjaan</h1>
-            <p className="text-gray-500 mt-1">Summary performa dan status pekerjaan terkini.</p>
+            <div className="flex items-center gap-2">
+                <h1 className="text-2xl font-bold text-gray-800">Dashboard Monitoring Pekerjaan</h1>
+                <div className={`flex items-center px-2 py-1 rounded text-xs border ${connectionError ? 'bg-red-50 text-red-600 border-red-200' : 'bg-gray-50 text-gray-500 border-gray-200'}`}>
+                    {connectionError ? (
+                        <>
+                            <WifiOff className="w-3 h-3 mr-1" />
+                            <span>Offline / Error</span>
+                        </>
+                    ) : isSaving ? (
+                        <>
+                            <RefreshCw className="w-3 h-3 mr-1 animate-spin text-blue-600" />
+                            <span>Menyimpan...</span>
+                        </>
+                    ) : isLoading ? (
+                        <>
+                            <RefreshCw className="w-3 h-3 mr-1 animate-spin" />
+                            <span>Syncing...</span>
+                        </>
+                    ) : (
+                        <>
+                            <Cloud className="w-3 h-3 mr-1 text-green-600" />
+                            <span>Terhubung</span>
+                        </>
+                    )}
+                </div>
+            </div>
+            <p className="text-gray-500 mt-1">
+                Summary performa dan status pekerjaan terkini. 
+                {lastUpdated && <span className="text-xs ml-2">Updated: {lastUpdated.toLocaleTimeString()}</span>}
+            </p>
         </div>
         <div className="flex gap-2">
             <input 
@@ -272,7 +298,6 @@ export const DashboardSummary: React.FC<DashboardSummaryProps> = ({ jobs, onBulk
         </div>
       </div>
 
-      {/* Overdue Alert Banner (Highlight) */}
       {stats.overdue > 0 && (
         <div className="bg-red-50 border-l-4 border-red-500 p-4 rounded-md flex items-start animate-pulse shadow-sm">
           <AlertCircle className="w-6 h-6 text-red-600 mr-3 mt-0.5" />
@@ -285,7 +310,6 @@ export const DashboardSummary: React.FC<DashboardSummaryProps> = ({ jobs, onBulk
         </div>
       )}
 
-      {/* Stat Cards - Clickable */}
       <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4">
         <div 
             onClick={() => setFilterStatus('Total')}
@@ -295,8 +319,8 @@ export const DashboardSummary: React.FC<DashboardSummaryProps> = ({ jobs, onBulk
             <CalendarDays className="w-6 h-6" />
           </div>
           <div>
-            <p className="text-sm text-gray-500 font-medium">Total Pekerjaan</p>
-            <h3 className="text-2xl font-bold text-gray-800">{stats.total}</h3>
+            <p className="text-gray-500 text-sm">Total Pekerjaan</p>
+            <p className="text-2xl font-bold text-gray-800">{stats.total}</p>
           </div>
         </div>
 
@@ -308,8 +332,8 @@ export const DashboardSummary: React.FC<DashboardSummaryProps> = ({ jobs, onBulk
             <CheckCircle2 className="w-6 h-6" />
           </div>
           <div>
-            <p className="text-sm text-gray-500 font-medium">Selesai</p>
-            <h3 className="text-2xl font-bold text-gray-800">{stats.completed}</h3>
+            <p className="text-gray-500 text-sm">Selesai</p>
+            <p className="text-2xl font-bold text-gray-800">{stats.completed}</p>
           </div>
         </div>
 
@@ -321,32 +345,29 @@ export const DashboardSummary: React.FC<DashboardSummaryProps> = ({ jobs, onBulk
             <Clock className="w-6 h-6" />
           </div>
           <div>
-            <p className="text-sm text-gray-500 font-medium">Dalam Proses</p>
-            <h3 className="text-2xl font-bold text-gray-800">{stats.inProgress + stats.pending}</h3>
+            <p className="text-gray-500 text-sm">Dalam Proses</p>
+            <p className="text-2xl font-bold text-gray-800">{stats.pending + stats.inProgress}</p>
           </div>
         </div>
 
         <div 
             onClick={() => setFilterStatus('Overdue')}
-            className="bg-white p-6 rounded-xl shadow-sm border border-red-100 flex items-center cursor-pointer hover:shadow-md transition-shadow group relative overflow-hidden"
+            className="bg-white p-6 rounded-xl shadow-sm border border-gray-100 flex items-center cursor-pointer hover:shadow-md transition-shadow group"
         >
-          <div className="absolute right-0 top-0 w-16 h-16 bg-red-500 opacity-10 rounded-bl-full"></div>
           <div className="p-3 rounded-full bg-red-50 text-red-600 mr-4 group-hover:bg-red-100 transition-colors">
             <AlertCircle className="w-6 h-6" />
           </div>
           <div>
-            <p className="text-sm text-gray-500 font-medium">Melewati Dateline</p>
-            <h3 className="text-2xl font-bold text-red-600">{stats.overdue}</h3>
+            <p className="text-gray-500 text-sm">Melewati Dateline</p>
+            <p className="text-2xl font-bold text-red-600">{stats.overdue}</p>
           </div>
         </div>
       </div>
 
-      {/* Charts Section */}
       <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
-        {/* Pie Chart */}
-        <div className="bg-white p-6 rounded-xl shadow-sm border border-gray-100 min-h-[350px]">
-          <h3 className="text-lg font-semibold text-gray-800 mb-4">Distribusi Status</h3>
-          <div className="h-64 w-full">
+        <div className="bg-white p-6 rounded-xl shadow-sm border border-gray-100">
+          <h3 className="text-lg font-bold text-gray-800 mb-4">Status Distribusi</h3>
+          <div className="h-64">
             <ResponsiveContainer width="100%" height="100%">
               <PieChart>
                 <Pie
@@ -370,61 +391,21 @@ export const DashboardSummary: React.FC<DashboardSummaryProps> = ({ jobs, onBulk
           </div>
         </div>
 
-        {/* Bar Chart */}
-        <div className="bg-white p-6 rounded-xl shadow-sm border border-gray-100 min-h-[350px]">
-          <h3 className="text-lg font-semibold text-gray-800 mb-4">Volume Pekerjaan per Kategori</h3>
-          <div className="h-64 w-full">
+        <div className="bg-white p-6 rounded-xl shadow-sm border border-gray-100">
+          <h3 className="text-lg font-bold text-gray-800 mb-4">Pekerjaan per Kategori</h3>
+          <div className="h-64">
             <ResponsiveContainer width="100%" height="100%">
-              <BarChart data={barData} layout="vertical" margin={{ left: 20 }}>
-                <CartesianGrid strokeDasharray="3 3" horizontal={false} />
-                <XAxis type="number" allowDecimals={false} />
-                <YAxis dataKey="name" type="category" width={120} tick={{fontSize: 12}} />
+              <BarChart data={barData}>
+                <CartesianGrid strokeDasharray="3 3" vertical={false} />
+                <XAxis dataKey="name" fontSize={12} tickLine={false} axisLine={false} />
+                <YAxis fontSize={12} tickLine={false} axisLine={false} />
                 <Tooltip />
-                <Bar dataKey="count" fill="#002F6C" radius={[0, 4, 4, 0]} barSize={20} />
+                <Bar dataKey="count" fill="#002F6C" radius={[4, 4, 0, 0]} />
               </BarChart>
             </ResponsiveContainer>
           </div>
         </div>
       </div>
-      
-      {/* Recent Overdue Table */}
-      {stats.overdueList.length > 0 && (
-         <div className="bg-white rounded-xl shadow-sm border border-gray-100 overflow-hidden">
-            <div className="p-4 border-b border-gray-100 bg-red-50 flex justify-between items-center">
-              <h3 className="font-semibold text-red-800">Daftar Keterlambatan (Prioritas)</h3>
-              <button 
-                onClick={() => setFilterStatus('Overdue')} 
-                className="text-xs text-red-600 hover:text-red-800 underline"
-              >
-                Lihat Semua
-              </button>
-            </div>
-            <div className="overflow-x-auto">
-              <table className="w-full text-sm text-left">
-                <thead className="bg-gray-50 text-gray-600">
-                  <tr>
-                    <th className="p-3">Kategori</th>
-                    <th className="p-3">Cabang/Dept</th>
-                    <th className="p-3">Jenis Pekerjaan</th>
-                    <th className="p-3">Dateline</th>
-                    <th className="p-3">Oleh</th>
-                  </tr>
-                </thead>
-                <tbody className="divide-y divide-gray-100">
-                  {stats.overdueList.slice(0, 5).map(job => (
-                    <tr key={job.id} className="hover:bg-gray-50">
-                      <td className="p-3">{job.category} - {job.subCategory}</td>
-                      <td className="p-3 font-medium">{job.branchDept}</td>
-                      <td className="p-3">{job.jobType}</td>
-                      <td className="p-3 text-red-600 font-bold">{new Date(job.deadline).toLocaleDateString('id-ID')}</td>
-                      <td className="p-3 text-xs text-gray-500">{job.createdBy || '-'}</td>
-                    </tr>
-                  ))}
-                </tbody>
-              </table>
-            </div>
-         </div>
-      )}
     </div>
   );
 };

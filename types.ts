@@ -1,4 +1,3 @@
-
 export type Status = 'Pending' | 'In Progress' | 'Completed' | 'Overdue';
 
 export interface Job {
@@ -7,12 +6,12 @@ export interface Job {
   subCategory: string;
   dateInput: string;
   branchDept: string;
-  jobType: string; // "Jenis Pekerjaan"
+  jobType: string;
   status: Status;
-  deadline: string; // "Dateline"
-  activationDate?: string; // Only for "Produksi Master Data"
+  deadline: string;
+  activationDate?: string;
   notes?: string;
-  createdBy?: string; // Email of the user who created the job
+  createdBy?: string;
 }
 
 export interface MenuItem {
@@ -32,5 +31,5 @@ export interface User {
   email: string;
   name: string;
   role: UserRole;
-  password?: string; // Added password field
+  password?: string;
 }

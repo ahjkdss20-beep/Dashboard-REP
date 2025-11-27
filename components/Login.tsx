@@ -1,4 +1,3 @@
-
 import React, { useState } from 'react';
 import { LOGO_URL } from '../constants';
 import { User } from '../types';
@@ -6,7 +5,7 @@ import { LogIn, Lock, User as UserIcon } from 'lucide-react';
 
 interface LoginProps {
   onLogin: (user: User) => void;
-  users: User[]; // Receive current users list (with potentially updated passwords)
+  users: User[];
 }
 
 export const Login: React.FC<LoginProps> = ({ onLogin, users }) => {
@@ -23,7 +22,6 @@ export const Login: React.FC<LoginProps> = ({ onLogin, users }) => {
     );
 
     if (user) {
-      // Check password (default 000000)
       if (user.password === password) {
         onLogin(user);
       } else {

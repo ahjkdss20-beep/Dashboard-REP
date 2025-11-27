@@ -1,4 +1,3 @@
-
 import React, { useState } from 'react';
 import { Menu, ChevronDown, ChevronRight, LayoutDashboard, Briefcase, LogOut, Lock, X } from 'lucide-react';
 import { MENU_STRUCTURE, LOGO_URL } from '../constants';
@@ -31,7 +30,6 @@ export const Layout: React.FC<LayoutProps> = ({
     "Produksi Master Data": false
   });
   
-  // Password Change Modal State
   const [showPasswordModal, setShowPasswordModal] = useState(false);
   const [oldPass, setOldPass] = useState('');
   const [newPass, setNewPass] = useState('');
@@ -71,7 +69,6 @@ export const Layout: React.FC<LayoutProps> = ({
 
   return (
     <div className="flex h-screen bg-gray-50 overflow-hidden">
-      {/* Mobile Sidebar Overlay */}
       {isSidebarOpen && (
         <div 
           className="fixed inset-0 z-20 bg-black bg-opacity-50 md:hidden"
@@ -79,14 +76,12 @@ export const Layout: React.FC<LayoutProps> = ({
         />
       )}
 
-      {/* Sidebar */}
       <aside 
         className={`fixed inset-y-0 left-0 z-30 w-64 bg-white shadow-xl transform transition-transform duration-300 ease-in-out md:relative md:translate-x-0 ${
           isSidebarOpen ? 'translate-x-0' : '-translate-x-full'
         }`}
       >
         <div className="flex flex-col h-full">
-          {/* Logo Area */}
           <div className="h-20 flex items-center justify-center border-b border-gray-100 p-4">
             <img 
               src={LOGO_URL} 
@@ -100,7 +95,6 @@ export const Layout: React.FC<LayoutProps> = ({
             <span className="text-2xl font-bold text-[#EE2E24] hidden">JNE</span>
           </div>
 
-          {/* Navigation */}
           <nav className="flex-1 overflow-y-auto py-4 px-3 space-y-1 scrollbar-hide">
             <button
               onClick={() => handleNavClick(null, null)}
@@ -159,7 +153,6 @@ export const Layout: React.FC<LayoutProps> = ({
             ))}
           </nav>
 
-          {/* Footer User Info */}
           <div className="p-4 border-t border-gray-100">
             <div className="flex items-center justify-between p-2 rounded-lg bg-gray-50">
               <div 
@@ -187,9 +180,7 @@ export const Layout: React.FC<LayoutProps> = ({
         </div>
       </aside>
 
-      {/* Main Content */}
       <main className="flex-1 flex flex-col h-full overflow-hidden">
-        {/* Mobile Header */}
         <header className="md:hidden bg-white h-16 border-b border-gray-200 flex items-center justify-between px-4 z-10">
           <div className="flex items-center">
             <button 
@@ -210,13 +201,11 @@ export const Layout: React.FC<LayoutProps> = ({
           </div>
         </header>
 
-        {/* Scrollable Content Area */}
         <div className="flex-1 overflow-auto p-4 md:p-8">
           {children}
         </div>
       </main>
 
-      {/* Change Password Modal */}
       {showPasswordModal && (
         <div className="fixed inset-0 z-50 flex items-center justify-center bg-black bg-opacity-50 p-4">
           <div className="bg-white rounded-xl shadow-xl w-full max-w-sm">

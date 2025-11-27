@@ -1,4 +1,3 @@
-
 import React, { useState, useRef } from 'react';
 import { Job, Status, User } from '../types';
 import { Plus, Upload, Trash2, X, Search, FileDown } from 'lucide-react';
@@ -11,7 +10,7 @@ interface JobManagerProps {
   onUpdateJob: (id: string, updates: Partial<Job>) => void;
   onDeleteJob: (id: string) => void;
   onBulkAddJobs: (jobs: Job[]) => void;
-  currentUser: User; // Need to know who is creating the job
+  currentUser: User;
 }
 
 export const JobManager: React.FC<JobManagerProps> = ({
@@ -28,7 +27,6 @@ export const JobManager: React.FC<JobManagerProps> = ({
   const [searchTerm, setSearchTerm] = useState('');
   const fileInputRef = useRef<HTMLInputElement>(null);
 
-  // Form States
   const [formData, setFormData] = useState<Partial<Job>>({
     status: 'Pending',
     dateInput: new Date().toISOString().split('T')[0],
@@ -48,7 +46,7 @@ export const JobManager: React.FC<JobManagerProps> = ({
       status: (formData.status as Status) || 'Pending',
       deadline: formData.deadline || '',
       activationDate: isProductionMaster ? formData.activationDate : undefined,
-      createdBy: currentUser.email // Mark ownership
+      createdBy: currentUser.email
     };
     onAddJob(newJob);
     setFormData({
@@ -62,12 +60,10 @@ export const JobManager: React.FC<JobManagerProps> = ({
   };
 
   const handleDownloadTemplate = () => {
-    // Define headers based on category
     const headers = isProductionMaster
       ? "Tanggal Input (YYYY-MM-DD),Cabang/Dept,Jenis Pekerjaan,Status,Dateline (YYYY-MM-DD),Tanggal Aktifasi (YYYY-MM-DD)"
       : "Tanggal Input (YYYY-MM-DD),Cabang/Dept,Jenis Pekerjaan,Status,Dateline (YYYY-MM-DD)";
 
-    // Example row
     const today = new Date().toISOString().split('T')[0];
     const nextWeek = new Date(Date.now() + 7 * 24 * 60 * 60 * 1000).toISOString().split('T')[0];
     
@@ -92,22 +88,16 @@ export const JobManager: React.FC<JobManagerProps> = ({
     const reader = new FileReader();
     reader.onload = (event) => {
       const text = event.target?.result as string;
-      // Handle Windows (\r\n) and Unix (\n) line endings
       const lines = text.split(/\r\n|\n/);
       const newJobs: Job[] = [];
       
-      // Skip header (index 0), start from index 1
       for(let i=1; i<lines.length; i++) {
-        // Safe check for empty lines
         if(!lines[i] || !lines[i].trim()) continue;
         
-        // Handle comma or semicolon separator
         const cols = lines[i].split(/,|;/); 
         
-        // Basic validation: ensure we have enough columns and first col is not empty
         if (cols.length >= 5 && cols[0]) {
             const rawStatus = cols[3]?.trim();
-            // Validate status
             let validStatus: Status = 'Pending';
             if (rawStatus === 'In Progress' || rawStatus === 'Completed' || rawStatus === 'Overdue') {
                 validStatus = rawStatus;
@@ -123,7 +113,7 @@ export const JobManager: React.FC<JobManagerProps> = ({
                 status: validStatus,
                 deadline: cols[4]?.trim() || new Date().toISOString().split('T')[0],
                 activationDate: isProductionMaster ? cols[5]?.trim() : undefined,
-                createdBy: currentUser.email // Mark ownership for bulk import
+                createdBy: currentUser.email
             });
         }
       }
@@ -139,7 +129,6 @@ export const JobManager: React.FC<JobManagerProps> = ({
     reader.readAsText(file);
   };
 
-  // Filter Jobs based on Category and Search
   const filteredJobs = jobs.filter(j => 
     j.category === category && 
     j.subCategory === subCategory &&
@@ -159,7 +148,6 @@ export const JobManager: React.FC<JobManagerProps> = ({
 
   return (
     <div className="bg-white rounded-xl shadow-sm border border-gray-100 min-h-[600px] flex flex-col">
-      {/* Header */}
       <div className="p-6 border-b border-gray-100 flex flex-col xl:flex-row justify-between items-start xl:items-center gap-4">
         <div>
           <div className="flex items-center text-sm text-gray-500 mb-1">
@@ -215,7 +203,6 @@ export const JobManager: React.FC<JobManagerProps> = ({
         </div>
       </div>
 
-      {/* Content */}
       <div className="p-6 flex-1">
         {view === 'form' ? (
           <div className="max-w-2xl mx-auto">
@@ -306,7 +293,6 @@ export const JobManager: React.FC<JobManagerProps> = ({
             </form>
           </div>
         ) : (
-          /* List View */
           <div className="space-y-4">
             <div className="relative">
               <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-gray-400" />

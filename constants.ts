@@ -1,4 +1,3 @@
-
 import { MenuStructure, User } from './types';
 
 export const MENU_STRUCTURE: MenuStructure = {
@@ -23,10 +22,17 @@ export const MENU_STRUCTURE: MenuStructure = {
 export const JNE_RED = "#EE2E24";
 export const JNE_BLUE = "#002F6C";
 
-// Fallback logo if the direct drive link has issues
 export const LOGO_URL = "https://lh3.googleusercontent.com/d/19L5QBkcuSDrfWX_uqZGVUkpAlriZijp1";
 
-// Default users with initial password
+// Google Apps Script Configuration
+export const GOOGLE_SCRIPT_URL = "";
+
+// JSONBin.io Configuration
+export const JSONBIN_BIN_ID = "692843aa43b1c97be9c875fd";
+export const JSONBIN_API_KEY = "$2a$10$LGur5G.UJ.Zqbg.83y6MrO/GqNujJc/zDfMiAx6keBe5gGyUhbSim";
+export const JSONBIN_URL = `https://api.jsonbin.io/v3/b/${JSONBIN_BIN_ID}`;
+
+// Default users configuration
 export const AUTHORIZED_USERS: User[] = [
   { email: "Ahmad.fauzan@jne.co.id", name: "Ahmad Fauzan", role: "Admin", password: "000000" },
   { email: "agus.permana@jne.co.id", name: "Agus Permana", role: "User", password: "000000" },

@@ -7,10 +7,5 @@ export default defineConfig({
   build: {
     outDir: 'dist',
     sourcemap: false
-  },
-  resolve: {
-    alias: {
-      // Ensures compatible imports
-    }
   }
 })
