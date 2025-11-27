@@ -1,5 +1,6 @@
+
 import React, { useState, useRef } from 'react';
-import { Job, Status } from '../types';
+import { Job, Status, User } from '../types';
 import { Plus, Upload, Trash2, X, Search, FileDown } from 'lucide-react';
 
 interface JobManagerProps {
@@ -10,6 +11,7 @@ interface JobManagerProps {
   onUpdateJob: (id: string, updates: Partial<Job>) => void;
   onDeleteJob: (id: string) => void;
   onBulkAddJobs: (jobs: Job[]) => void;
+  currentUser: User; // Need to know who is creating the job
 }
 
 export const JobManager: React.FC<JobManagerProps> = ({
@@ -19,7 +21,8 @@ export const JobManager: React.FC<JobManagerProps> = ({
   onAddJob,
   onUpdateJob,
   onDeleteJob,
-  onBulkAddJobs
+  onBulkAddJobs,
+  currentUser
 }) => {
   const [view, setView] = useState<'list' | 'form'>('list');
   const [searchTerm, setSearchTerm] = useState('');
@@ -45,6 +48,7 @@ export const JobManager: React.FC<JobManagerProps> = ({
       status: (formData.status as Status) || 'Pending',
       deadline: formData.deadline || '',
       activationDate: isProductionMaster ? formData.activationDate : undefined,
+      createdBy: currentUser.email // Mark ownership
     };
     onAddJob(newJob);
     setFormData({
@@ -118,7 +122,8 @@ export const JobManager: React.FC<JobManagerProps> = ({
                 jobType: cols[2]?.trim() || 'Imported Job',
                 status: validStatus,
                 deadline: cols[4]?.trim() || new Date().toISOString().split('T')[0],
-                activationDate: isProductionMaster ? cols[5]?.trim() : undefined
+                activationDate: isProductionMaster ? cols[5]?.trim() : undefined,
+                createdBy: currentUser.email // Mark ownership for bulk import
             });
         }
       }
@@ -134,7 +139,7 @@ export const JobManager: React.FC<JobManagerProps> = ({
     reader.readAsText(file);
   };
 
-  // Filter Jobs
+  // Filter Jobs based on Category and Search
   const filteredJobs = jobs.filter(j => 
     j.category === category && 
     j.subCategory === subCategory &&
@@ -147,8 +152,8 @@ export const JobManager: React.FC<JobManagerProps> = ({
     if (isOverdue) return 'bg-red-100 text-red-800 border-red-200';
     switch (status) {
       case 'Completed': return 'bg-green-100 text-green-800 border-green-200';
-      case 'In Progress': return 'bg-blue-100 text-blue-800 border-blue-200';
-      default: return 'bg-gray-100 text-gray-800 border-gray-200';
+      case 'In Progress': return 'bg-yellow-100 text-yellow-800 border-yellow-200';
+      default: return 'bg-blue-50 text-blue-800 border-blue-100';
     }
   };
 
@@ -324,13 +329,14 @@ export const JobManager: React.FC<JobManagerProps> = ({
                     {isProductionMaster && <th className="p-4 whitespace-nowrap">Aktifasi</th>}
                     <th className="p-4 whitespace-nowrap">Status</th>
                     <th className="p-4 whitespace-nowrap">Dateline</th>
+                    <th className="p-4 whitespace-nowrap">Oleh</th>
                     <th className="p-4 text-center">Aksi</th>
                   </tr>
                 </thead>
                 <tbody className="divide-y divide-gray-100">
                   {filteredJobs.length === 0 ? (
                     <tr>
-                      <td colSpan={isProductionMaster ? 7 : 6} className="p-8 text-center text-gray-400">
+                      <td colSpan={isProductionMaster ? 8 : 7} className="p-8 text-center text-gray-400">
                         Belum ada data pekerjaan. Gunakan tombol "Import Excel/CSV" atau "Tambah Manual".
                       </td>
                     </tr>
@@ -358,6 +364,9 @@ export const JobManager: React.FC<JobManagerProps> = ({
                            <span className={`text-xs font-semibold ${new Date() > new Date(job.deadline) && job.status !== 'Completed' ? 'text-red-600' : 'text-gray-600'}`}>
                              {new Date(job.deadline).toLocaleDateString('id-ID')}
                            </span>
+                        </td>
+                        <td className="p-4 text-xs text-gray-400">
+                          {job.createdBy || '-'}
                         </td>
                         <td className="p-4 text-center">
                           <button 

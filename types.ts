@@ -1,3 +1,4 @@
+
 export type Status = 'Pending' | 'In Progress' | 'Completed' | 'Overdue';
 
 export interface Job {
@@ -11,6 +12,7 @@ export interface Job {
   deadline: string; // "Dateline"
   activationDate?: string; // Only for "Produksi Master Data"
   notes?: string;
+  createdBy?: string; // Email of the user who created the job
 }
 
 export interface MenuItem {
@@ -23,3 +25,12 @@ export interface MenuStructure {
 }
 
 export type ViewMode = 'dashboard' | 'category';
+
+export type UserRole = 'Admin' | 'User';
+
+export interface User {
+  email: string;
+  name: string;
+  role: UserRole;
+  password?: string; // Added password field
+}
