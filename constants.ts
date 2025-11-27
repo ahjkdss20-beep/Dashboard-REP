@@ -32,5 +32,5 @@ export const AUTHORIZED_USERS: User[] = [
   { email: "agus.permana@jne.co.id", name: "Agus Permana", role: "User", password: "000000" },
   { email: "rita.sumardi@jne.co.id", name: "Rita Sumardi", role: "User", password: "000000" },
   { email: "adm.ppdd@jne.co.id", name: "Admin PPDD", role: "User", password: "000000" },
-  { email: "davis.gunawan@jne.co.id", name: "Davis Gunawan", role: "User", password: "000000" }
+  { email: "davis.gunawan@jne.co.id", name: "Davis Gunawan", role: "Admin", password: "000000" }
 ];
