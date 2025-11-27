@@ -8,15 +8,34 @@ import { Job, User } from './types';
 import { AUTHORIZED_USERS } from './constants';
 
 function App() {
-  // Load Users from LocalStorage or initialize with constants
+  // Load Users from LocalStorage but SYNC with constants to apply Role updates
   const [users, setUsers] = useState<User[]>(() => {
-    const savedUsers = localStorage.getItem('jne_users_data');
-    return savedUsers ? JSON.parse(savedUsers) : AUTHORIZED_USERS;
+    const savedUsersRaw = localStorage.getItem('jne_users_data');
+    const savedUsers = savedUsersRaw ? JSON.parse(savedUsersRaw) : [];
+
+    // Merge strategy:
+    // Always use the authorized list from code as the source of truth for ROLES and NAMES.
+    // However, preserve the PASSWORD from localStorage if the user exists there.
+    return AUTHORIZED_USERS.map(defaultUser => {
+      const savedUser = savedUsers.find((u: User) => u.email === defaultUser.email);
+      return {
+        ...defaultUser,
+        // If user has a saved password, use it. Otherwise use default.
+        password: savedUser ? savedUser.password : defaultUser.password
+      };
+    });
   });
 
   const [currentUser, setCurrentUser] = useState<User | null>(() => {
     const saved = localStorage.getItem('jne_current_user');
-    return saved ? JSON.parse(saved) : null;
+    const parsedUser = saved ? JSON.parse(saved) : null;
+    
+    // If we have a saved session, ensure we use the latest role info from the users state
+    if (parsedUser) {
+        const upToDateUser = users.find(u => u.email === parsedUser.email);
+        return upToDateUser || parsedUser;
+    }
+    return null;
   });
 
   const [activeCategory, setActiveCategory] = useState<string | null>(null);
@@ -45,7 +64,9 @@ function App() {
   }, [currentUser]);
 
   const handleLogin = (user: User) => {
-    setCurrentUser(user);
+    // Ensure we log in with the most up-to-date user data from state
+    const freshUserData = users.find(u => u.email === user.email) || user;
+    setCurrentUser(freshUserData);
   };
 
   const handleLogout = () => {
